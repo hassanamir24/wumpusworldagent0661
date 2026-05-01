@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wumpus World</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:       #0e0e0e;
+      --surface:  #161616;
+      --border:   #2a2a2a;
+      --text:     #e8e8e8;
+      --muted:    #5a5a5a;
+      --dim:      #888;
+      --accent:   #f0c040;
+      --green:    #4caf82;
+      --red:      #e05252;
+      --blue:     #5b9cf6;
+      --mono:     'IBM Plex Mono', monospace;
+      --sans:     'IBM Plex Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      min-height: 100vh;
+      padding: 28px 32px;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      color: var(--text);
+    }
+    header span {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: #ff0000;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Controls ───────────────────────────────────────── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .field {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 10px;
+    }
+    .field label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+    .field input[type=number] {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      width: 36px;
+      text-align: center;
+    }
+    input[type=number]::-webkit-inner-spin-button { opacity: 0.3; }
+
+    .sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+    .speed-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 10px;
+    }
+    .speed-wrap label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 72px;
+      height: 2px;
+      background: var(--border);
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      background: var(--accent);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    button {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 0.04em;
+      padding: 7px 16px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    button:hover:not(:disabled) {
+      border-color: var(--dim);
+      color: #fff;
+    }
+    button:disabled { opacity: 0.3; cursor: default; }
+
+    #btn-new {
+      background: var(--accent);
+      color: #0e0e0e;
+      border-color: var(--accent);
+      font-weight: 500;
+    }
+    #btn-new:hover { background: #f5cd60; border-color: #f5cd60; }
+
+    #btn-auto.running {
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* ── Status bar ─────────────────────────────────────── */
+    #status {
+      font-family: var(--mono);
+      font-size: 15px;
+      padding: 8px 14px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: #e8dab0;;
+      margin-bottom: 24px;
+      letter-spacing: 0.03em;
+    }
+    #status.win   { border-color: var(--green); color: var(--green); }
+    #status.lose  { border-color: var(--red);   color: var(--red);   }
+    #status.stuck { border-color: #555; color: #555; }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    .layout {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    /* ── Grid ───────────────────────────────────────────── */
+    table {
+      border-collapse: collapse;
+      border: 1px solid var(--border);
+    }
+    td {
+      width: 64px;
+      height: 64px;
+      border: 1px solid var(--border);
+      text-align: center;
+      vertical-align: middle;
+      transition: background 0.2s;
+    }
+
+    .cell-unknown  { background: var(--bg); }
+    .cell-safe     { background: #0d1f17; }
+    .cell-visited  { background: #111827; }
+    .cell-agent    { background: #1a1500; }
+    .cell-danger   { background: #1a0a0a; }
+
+    .cell-icon {
+      font-size: 22px;
+      display: block;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .cell-coord {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: #e8dab0;
+      letter-spacing: 0.04em;
+    }
+
+    .cell-agent .cell-icon { animation: pulse 1.4s ease-in-out infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .leg {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .leg-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    /* ── Side panel ──────────────────────────────────────── */
+    .side {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 14px 16px;
+    }
+    .card-title {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: bolder;
+      letter-spacing: 0.1em;
+      color: #e8e8da;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* Percepts */
+    .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 3px;
+      letter-spacing: 0.04em;
+    }
+    .tag-blue   { background: #0d1a33; color: var(--blue);   border: 1px solid #1a3a6e; }
+    .tag-red    { background: #1a0d0d; color: var(--red);    border: 1px solid #4a1515; }
+    .tag-yellow { background: #1a1500; color: var(--accent); border: 1px solid #3a2f00; }
+    .tag-none   { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+
+    /* Metrics */
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 7px 20px;
+      align-items: center;
+    }
+    .m-key {
+      font-family: var(--mono);
+      font-size: 11px;
+      color:#bb9e1fd5 ;
+    }
+    .m-val {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: #bb9e1fd5;
+      text-align: right;
+      font-weight: 500;
+    }
+
+    /* KB */
+    .kb-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      max-height: 130px;
+      overflow-y: auto;
+    }
+    .kb-list::-webkit-scrollbar { width: 3px; }
+    .kb-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+    .kb-item {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: #bb9e1fd5;
+      padding: 3px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .kb-item:last-child { border: none; }
+    .kb-hint {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: #bb9e1fd5;
+      margin-top: 8px;
+    }
+
+    /* Log */
+    .log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+    .log-list::-webkit-scrollbar { width: 3px; }
+    .log-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+    .log-item {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: #bb9e1fd5;
+      padding: 2px 0;
+    }
+    .log-item:first-child { color: #bb9e1fd5; }
+
+    /* Empty */
+    #empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 180px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+
+    #main-content { display: none; }
+
+    @media (max-width: 700px) {
+      body { padding: 16px; }
+      .layout { grid-template-columns: 1fr; }
+      td { width: 52px; height: 52px; }
+      header { flex-direction: column; gap: 4px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>WUMPUS WORLD</h1>
+  <span>knowledge-based agent · propositional logic · resolution refutation</span>
+</header>
+
+<div class="toolbar">
+  <div class="field">
+    <label>ROWS</label>
+    <input type="number" id="inp-rows" min="3" max="7" value="4">
+  </div>
+  <div class="field">
+    <label>COLS</label>
+    <input type="number" id="inp-cols" min="3" max="7" value="4">
+  </div>
+  <div class="field">
+    <label>PITS</label>
+    <input type="number" id="inp-pits" min="1" max="6" value="3">
+  </div>
+
+  <div class="sep"></div>
+
+  <button id="btn-new" onclick="newGame()">NEW GAME</button>
+  <button id="btn-step" onclick="step()" disabled>STEP ▶</button>
+  <button id="btn-auto" onclick="toggleAuto()" disabled>AUTO ▶▶</button>
+
+  <div class="sep"></div>
+
+  <div class="speed-wrap">
+    <label>SPEED</label>
+    <input type="range" id="speed" min="1" max="5" value="3">
+  </div>
+</div>
+
+<div id="status">— press NEW GAME to begin</div>
+
+<div id="empty">no game loaded</div>
+
+<div class="layout" id="main-content">
+
+  <div>
+    <table id="grid"></table>
+    <div class="legend">
+      <div class="leg"><div class="leg-dot" style="background:#1a1500;border:1px solid #3a2f00"></div>AGENT</div>
+      <div class="leg"><div class="leg-dot" style="background:#0d1f17;border:1px solid #1a3a2a"></div>SAFE</div>
+      <div class="leg"><div class="leg-dot" style="background:#111827;border:1px solid #1e2f45"></div>VISITED</div>
+      <div class="leg"><div class="leg-dot" style="background:#0e0e0e;border:1px solid #2a2a2a"></div>UNKNOWN</div>
+      <div class="leg"><div class="leg-dot" style="background:#1a0a0a;border:1px solid #4a1515"></div>DANGER</div>
+    </div>
+  </div>
+
+  <div class="side">
+
+    <div class="card">
+      <div class="card-title">Percepts</div>
+      <div class="tags" id="percept-tags"><span class="tag-none">—</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Metrics</div>
+      <div class="metrics">
+        <span class="m-key">position</span>        <span class="m-val" id="m-pos">—</span>
+        <span class="m-key">agent steps</span>     <span class="m-val" id="m-steps">0</span>
+        <span class="m-key">inference steps</span> <span class="m-val" id="m-inf">0</span>
+        <span class="m-key">kb clauses</span>      <span class="m-val" id="m-kb">0</span>
+        <span class="m-key">cells safe</span>      <span class="m-val" id="m-safe">0</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Knowledge Base <span style="font-weight:300;text-transform:none;font-size:10px">(last 8)</span></div>
+      <div class="kb-list" id="kb-list"></div>
+      <div class="kb-hint">P = pit · W = wumpus · ¬ = NOT · ∨ = OR</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Agent Log</div>
+      <div class="log-list" id="log-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  let world = null;
+  let autoTimer = null;
+  const SPEED = { 1: 900, 2: 550, 3: 300, 4: 150, 5: 60 };
+
+  async function newGame() {
+    stopAuto();
+    const rows = +document.getElementById('inp-rows').value;
+    const cols = +document.getElementById('inp-cols').value;
+    const pits = +document.getElementById('inp-pits').value;
+    const res = await fetch('/api/new', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows, cols, pits })
+    });
+    world = await res.json();
+    render();
+    document.getElementById('btn-step').disabled = false;
+    document.getElementById('btn-auto').disabled = false;
+  }
+
+  async function step() {
+    if (!world || world.done) return;
+    const res = await fetch('/api/step', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ world })
+    });
+    world = await res.json();
+    render();
+    if (world.done) {
+      stopAuto();
+      document.getElementById('btn-step').disabled = true;
+      document.getElementById('btn-auto').disabled = true;
+    }
+  }
+
+  function toggleAuto() {
+    if (autoTimer) { stopAuto(); return; }
+    const sp = +document.getElementById('speed').value;
+    const btn = document.getElementById('btn-auto');
+    btn.textContent = 'PAUSE ⏸';
+    btn.classList.add('running');
+    autoTimer = setInterval(async () => {
+      if (!world || world.done) { stopAuto(); return; }
+      await step();
+    }, SPEED[sp] || 300);
+  }
+
+  function stopAuto() {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    const btn = document.getElementById('btn-auto');
+    btn.textContent = 'AUTO ▶▶';
+    btn.classList.remove('running');
+  }
+
+  function render() {
+    document.getElementById('empty').style.display = 'none';
+    document.getElementById('main-content').style.display = 'grid';
+    renderGrid();
+    renderPercepts();
+    renderMetrics();
+    renderKB();
+    renderLog();
+    renderStatus();
+  }
+
+  function renderGrid() {
+    const { rows, cols, agent, hazards, visited, safe, gold, done } = world;
+    let html = '';
+    for (let r = rows - 1; r >= 0; r--) {
+      html += '<tr>';
+      for (let c = 0; c < cols; c++) {
+        const k = `${r},${c}`;
+        const isAgent = agent[0] === r && agent[1] === c;
+        const h = hazards[k];
+        const reveal = done && h;
+
+        let cls = 'cell-unknown';
+        if (isAgent)         cls = 'cell-agent';
+        else if (reveal)     cls = 'cell-danger';
+        else if (safe[k])    cls = 'cell-safe';
+        else if (visited[k]) cls = 'cell-visited';
+
+        let icon = '';
+        if (isAgent)                                   icon = '🧭';
+        else if (reveal && h === 'wumpus')             icon = '👹';
+        else if (reveal && h === 'pit')                icon = '🕳';
+        else if (done && gold[0]===r && gold[1]===c)   icon = '🏆';
+        else if (safe[k] && !visited[k])               icon = '<span style="font-size:13px;color:#4caf82">✓</span>';
+        else if (!visited[k])                          icon = '<span style="font-size:11px;color:#2a2a2a">?</span>';
+
+        html += `<td class="${cls}">
+          <span class="cell-icon">${icon}</span>
+          <span class="cell-coord">${r},${c}</span>
+        </td>`;
+      }
+      html += '</tr>';
+    }
+    document.getElementById('grid').innerHTML = html;
+  }
+
+  function renderPercepts() {
+    const el = document.getElementById('percept-tags');
+    const { percepts } = world;
+    if (!percepts || !percepts.length) {
+      el.innerHTML = '<span class="tag-none">none</span>';
+      return;
+    }
+    el.innerHTML = percepts.map(p => {
+      if (p === 'Breeze')  return `<span class="tag tag-blue">💨 breeze</span>`;
+      if (p === 'Stench')  return `<span class="tag tag-red">😤 stench</span>`;
+      if (p === 'Glitter') return `<span class="tag tag-yellow">✨ glitter</span>`;
+      return `<span class="tag">${p}</span>`;
+    }).join('');
+  }
+
+  function renderMetrics() {
+    const w = world;
+    document.getElementById('m-pos').textContent    = `(${w.agent[0]}, ${w.agent[1]})`;
+    document.getElementById('m-steps').textContent  = w.agent_steps;
+    document.getElementById('m-inf').textContent    = w.inference_steps;
+    document.getElementById('m-kb').textContent     = w.kb.length;
+    document.getElementById('m-safe').textContent   = Object.keys(w.safe).length;
+  }
+
+  function renderKB() {
+    const el = document.getElementById('kb-list');
+    if (!world.kb_display || !world.kb_display.length) {
+      el.innerHTML = '<div class="kb-item" style="color:#2a2a2a">empty</div>';
+      return;
+    }
+    el.innerHTML = world.kb_display.map(s => `<div class="kb-item">${s}</div>`).join('');
+  }
+
+  function renderLog() {
+    const el = document.getElementById('log-list');
+    if (!world.log || !world.log.length) {
+      el.innerHTML = '<div class="log-item" style="color:#2a2a2a">—</div>';
+      return;
+    }
+    el.innerHTML = world.log.map(m => `<div class="log-item">${m}</div>`).join('');
+  }
+
+  function renderStatus() {
+    const el = document.getElementById('status');
+    const o = world.outcome;
+    el.className = o === 'win' ? 'win' : o === 'lose' ? 'lose' : o === 'stuck' ? 'stuck' : '';
+    el.textContent =
+      o === 'win'   ? '✓ agent found the gold — game over' :
+      o === 'lose'  ? '✗ agent died — press new game' :
+      o === 'stuck' ? '— agent stuck, no safe moves left' :
+      `→ exploring (${world.agent[0]}, ${world.agent[1]})`;
+  }
+</script>
+</body>
+</html>

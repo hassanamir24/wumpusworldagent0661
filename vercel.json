@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "15mb",
+        "includeFiles": ["templates/index.html", "wumpus.py"]
+      }
+    }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "index.py" }
+  ]
+}
